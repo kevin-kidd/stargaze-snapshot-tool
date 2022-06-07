@@ -32,12 +32,14 @@ const SnapshotTool = () => {
     const [alertOpen, setAlertOpen] = useState(false);
     const [alertMessage, setAlertMessage] = useState("")
     const [owners, setOwners] = useState([])
+    const [uniqueHolders, setUniqueHolders] = useState('')
 
     const reset = () => {
         setOwners([])
         setNumTokens(0)
         setName("")
         setContractAddress("")
+        setUniqueHolders('')
     }
 
     const grabList = async (sg721) => {
@@ -46,17 +48,39 @@ const SnapshotTool = () => {
         const numTokens = await client.queryContractSmart(sg721, { num_tokens: {}})
         const contractInfo = await client.queryContractSmart(sg721, { contract_info: {}})
 
-        for(let i = 1; i <= numTokens.count; i++){
-            const tmp = await client.queryContractSmart(sg721, {
-                owner_of: {
-                    token_id: i.toString()
-                },
-            });
-            owners.push({
-                token_id: i.toString(),
-                owner: tmp.owner
-            })
+        if(numTokens === 0){
+            setAlertMessage("None of the tokens have been minted yet.")
+            setAlertOpen(true)
+            setLoading(false);
+            return
         }
+
+        for(let i = 1; i <= numTokens.count; i++){
+            try {
+                const tmp = await client.queryContractSmart(sg721, {
+                    owner_of: {
+                        token_id: i.toString()
+                    },
+                })
+                owners.push({
+                    token_id: i.toString(),
+                    owner: tmp.owner
+                })
+            } catch (e) {
+                console.log(e.message)
+            }
+        }
+
+        // Grab unique owners
+        let unique = [];
+        owners.filter(function(item){
+            let i = unique.findIndex(x => (x.owner === item.owner));
+            if(i <= -1){
+                unique.push(item);
+            }
+            return null;
+        });
+        setUniqueHolders(" " + unique.length.toString())
 
         setName(contractInfo.name)
         setNumTokens(numTokens.count)
@@ -122,7 +146,6 @@ const SnapshotTool = () => {
                     rel="stylesheet"
                     href="https://fonts.googleapis.com/icon?family=Material+Icons"
                 />
-                <link rel="icon" href="/favicon.ico" />
             </Head>
             <ThemeProvider theme={darkTheme}>
                 <Box minHeight="100vh" display="flex" justifyContent="center"
@@ -130,7 +153,7 @@ const SnapshotTool = () => {
                     <Grid container display="flex" justifyContent="center" alignItems="center" flexDirection="row">
                         <Grid item xs={10} sm={6} md={6} lg={4} style={{textAlign: "center"}}>
                             <AddressForm numTokens={numTokens} contractAddress={contractAddress} setContractAddress={setContractAddress} loading={loading} queryContract={queryContract} />
-                            <CollectionInfo reset={reset} name={name} numTokens={numTokens} />
+                            <CollectionInfo reset={reset} uniqueHolders={uniqueHolders} name={name} numTokens={numTokens} />
                         </Grid>
                     </Grid>
                     <Instructions numTokens={numTokens} />
